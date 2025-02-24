@@ -1,0 +1,125 @@
+import imaplib
+import email
+import csv
+from email.header import decode_header
+
+# Your Gmail Credentials
+EMAIL_USER = "crmproject2025@gmail.com"  # Replace with your Gmail
+EMAIL_PASS = "qkxtmjukczmykeeu"  # Replace with your 16-character App Password
+
+# CSV Files
+LEAD_CSV = "lead.csv"
+OPPORTUNITY_CSV = "opportunity.csv"
+
+# Keywords for Classification
+LEAD_KEYWORDS = ["inquiry", "interested", "contact", "question", "information"]
+OPPORTUNITY_KEYWORDS = ["project", "development", "service", "quotation", "pricing"]
+
+def classify_email(subject, body):
+    """Classifies the email as Lead or Opportunity based on keywords."""
+    text = (subject + " " + body).lower()
+
+    for keyword in OPPORTUNITY_KEYWORDS:
+        if keyword in text:
+            return "Opportunity"
+
+    for keyword in LEAD_KEYWORDS:
+        if keyword in text:
+            return "Lead"
+
+    return "Uncategorized"
+
+try:
+    print("Connecting to Gmail IMAP server...")
+    mail = imaplib.IMAP4_SSL("imap.gmail.com")
+   
+    print("Logging in...")
+    mail.login(EMAIL_USER, EMAIL_PASS)
+
+    print("Selecting inbox...")
+    mail.select("inbox")  # Select the inbox folder
+
+    print("Searching for unread emails...")
+    status, messages = mail.search(None, 'UNSEEN')
+    if status != "OK":
+        print("No unread emails found!")
+        exit()
+
+    email_ids = messages[0].split()
+    print(f"Found {len(email_ids)} unread emails.")
+
+    # Open CSV files for storing classified emails
+    lead_file = open(LEAD_CSV, "a", newline="", encoding="utf-8")
+    opportunity_file = open(OPPORTUNITY_CSV, "a", newline="", encoding="utf-8")
+
+    lead_writer = csv.writer(lead_file)
+    opportunity_writer = csv.writer(opportunity_file)
+
+    # Write CSV Headers (if file is empty)
+    if lead_file.tell() == 0:
+        lead_writer.writerow(["Sender", "Subject", "Body", "Category"])
+    if opportunity_file.tell() == 0:
+        opportunity_writer.writerow(["Sender", "Subject", "Body", "Category"])
+
+    for email_id in email_ids:
+        print(f"Fetching email ID {email_id}...")
+        status, msg_data = mail.fetch(email_id, "(RFC822)")
+        if status != "OK":
+            print(f"Failed to fetch email ID {email_id}")
+            continue
+
+        for response_part in msg_data:
+            if isinstance(response_part, tuple):
+                msg = email.message_from_bytes(response_part[1])
+
+                # Decode Email Subject
+                subject, encoding = decode_header(msg["Subject"])[0]
+                if isinstance(subject, bytes):
+                    subject = subject.decode(encoding or "utf-8", errors="ignore")
+
+                # Decode Sender Info
+                sender, encoding = decode_header(msg.get("From"))[0]
+                if isinstance(sender, bytes):
+                    sender = sender.decode(encoding or "utf-8", errors="ignore")
+
+                # Extract Email Body (Plain Text or HTML)
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get("Content-Disposition"))
+
+                        if "attachment" not in content_disposition:
+                            try:
+                                body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                            except:
+                                body = "(Unable to decode email body)"
+                else:
+                    body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+
+                # Classify the email
+                category = classify_email(subject, body)
+                print(f"📩 Email from {sender} classified as {category}.")
+
+                # Save to the appropriate CSV file
+                if category == "Lead":
+                    lead_writer.writerow([sender, subject, body, category])
+                elif category == "Opportunity":
+                    opportunity_writer.writerow([sender, subject, body, category])
+
+except imaplib.IMAP4.error as e:
+    print(f"IMAP error: {e}")
+except Exception as e:
+    print(f"An error occurred: {e}")
+finally:
+    print("Logging out...")
+    try:
+        mail.logout()
+    except Exception as e:
+        print(f"Failed to logout: {e}")
+
+    # Close CSV files
+    lead_file.close()
+    opportunity_file.close()
+
+print(f"✅ Emails classified & saved in '{LEAD_CSV}' and '{OPPORTUNITY_CSV}'")
