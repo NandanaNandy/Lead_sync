@@ -3,7 +3,7 @@ import email
 from email.header import decode_header
 import time
 import sqlite3
-import ollama  # Using Ollama for LLaMA-3.2
+import ollama # Import the LLaMA library
 import os
 
 # Email credentials
