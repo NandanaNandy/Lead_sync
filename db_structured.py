@@ -88,8 +88,8 @@ def save_to_database(sender, classification, urgency, date_mentioned, email_body
 def extract_content_with_llama(email_body):
     prompt = f"""
     Analyze the following email and classify it into:
-    - Lead
-    - Opportunity
+    - Lead (A Lead is a potential customer who has shown interest in your business but hasn't engaged in serious discussions yet.)
+    - Opportunity (a mail is said to be in this category if it is about a specific requirement or opportunity)
     - Other
     Also extract:
     - Important dates mentioned in the email
@@ -100,6 +100,7 @@ def extract_content_with_llama(email_body):
     Classification: [Lead/Opportunity/Other]
     Date: [Extracted date or 'None']
     Urgency: [Low/Medium/High]
+    **Note : be accurate and specific in your classification and extraction**
     """
     try:
         response = ollama.chat(model="llama3.2", messages=[{"role": "user", "content": prompt}])
@@ -172,7 +173,7 @@ def main():
     try:
         while True:
             check_emails()
-            time.sleep(180)
+            time.sleep(18)
     except KeyboardInterrupt:
         print("\nProcessing stopped.")
 
